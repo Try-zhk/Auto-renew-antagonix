@@ -20,8 +20,9 @@ concurrency:
 jobs:
   daily:
     runs-on: ubuntu-24.04
-    # 续期+AFK 默认约 15 分钟；主用失败切备用再跑一轮，最坏翻倍，放宽到 80 分钟
-    timeout-minutes: 80
+    # 默认 10 币约 15 分钟即可跑完；手动触发大金币数（如 100 币≈2 小时）或
+    # 主用失败切备用重跑一轮时都能装下，上限放到 350 分钟
+    timeout-minutes: 350
 
     steps:
       - name: 📥 拉取私库脚本
@@ -174,9 +175,10 @@ jobs:
           PROXY_URL_BACKUP: ${{ secrets.PROXY_URL_BACKUP }}
           AFK_COINS: ${{ (github.event_name == 'workflow_dispatch' && inputs.afk_coins) || '10' }}
           HEADLESS: "0"
-          # 单次脚本运行时限：默认 10 币约 20 分钟内；主备两轮在 job 80 分钟内
-          MAX_RUN_SECONDS: "2100"
         run: |
+          # 单次时限随金币目标伸缩：续期 15 分钟 + 每币 60s + 过盾/登录缓冲 10 分钟
+          export MAX_RUN_SECONDS=$((900 + AFK_COINS * 60 + 600))
+
           run_daily() {
             PROXY_ROLE="$1" xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" \
               python3 -u freezehost_renew.py --daily
